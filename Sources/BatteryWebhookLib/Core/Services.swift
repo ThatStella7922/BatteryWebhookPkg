@@ -17,6 +17,34 @@ public class BatteryWebhookServices {
     
     /// Data types used to build payloads for the "Discord" service
     public class DiscordService {
+        
+        /**
+         Error type for errors returned from Discord webhooks. You'll get a `code` (Int) and `message` (String)
+         
+         This type is used strictly for decoding responses.
+         
+         - Warning: You cannot catch this object, catch `DiscordNetworkError.intermediary` instead. See `DiscordNetworkError2` for more info
+         */
+        public struct DiscordNetworkErrorJSON: Decodable {
+            public let code: Int
+            public let message: String
+        }
+        
+        /**
+         Container error type for `DiscordNetworkErrorJSON`.
+         
+         This is required because you cannot directly catch `DiscordNetworkErrorJSON` due to error that I wasn't able to debug.
+         
+         `DiscordNetWorkErrorJSON` previously conformed to Error, but could not be caught in do catch statements because of the following error:
+         "`Type 'BatteryWebhookServices.DiscordService.DiscordNetworkErrorJSON.Type' cannot conform to '_ErrorCodeProtocol'`".
+         
+         Now `DiscordNetworkErrorJSON` no longer conforms to Error, and you should catch this `DiscordNetworkError` object when catching errors returned from Discord webhooks.
+
+         */
+        public enum DiscordNetworkError: Error {
+            case intermediary(DiscordNetworkErrorJSON)
+        }
+        
         /**
          Author block to be used in a `DiscordEmbed`
          

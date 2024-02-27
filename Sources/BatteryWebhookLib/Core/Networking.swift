@@ -11,8 +11,10 @@ import Foundation
  BatteryWebhookLib's core components for interacting with the Internet
  */
 public class BatteryWebhookNetworking {
-    enum NetworkingError: Error {
-        case error(String)
+    public enum NetworkingError: Error {
+        case systemError(String)
+        case serverError(String)
+        case generic
     }
     
     /**
@@ -22,15 +24,13 @@ public class BatteryWebhookNetworking {
       - sendUrl: The URL to POST to
       - dataToPost: An Encodable object that this function will encode to JSON automatically
      */
-    public static func jsonPost(sendUrl: String, dataToPost: Encodable) throws -> (err: Bool, errMsg: String) {
-        //TODO: Actually throw errors instead of returning them
-        
+    public static func jsonPost(sendUrl: String, dataToPost: Encodable) throws {        
         var returnErr = false
-        var returnErrMsg = ""
+        var returnErrMsg = NetworkingError.generic
         
         // prep json data
         let jsonEncoder = JSONEncoder()
-        let jsonData = try! jsonEncoder.encode(dataToPost)
+        let jsonData = try jsonEncoder.encode(dataToPost)
         
         // our actual post
         let webhookURL = URL(string: sendUrl.trimmingCharacters(in: .whitespacesAndNewlines))! // create URL object from input string, cleaning it
@@ -43,23 +43,24 @@ public class BatteryWebhookNetworking {
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
             defer { sem.signal() }
-            guard let data = data, error == nil else {
+            guard let data = data, error == nil else { // system returned an error (typically no internet)
                 returnErr = true
-                returnErrMsg = error?.localizedDescription ?? "No data"
-                print(error?.localizedDescription ?? "No data")
+                returnErrMsg = NetworkingError.systemError(error?.localizedDescription ?? "No data")
                 return
             }
             let responseJSON = try? JSONSerialization.jsonObject(with: data, options: [])
-            if responseJSON is [String: Any] {
+            if responseJSON is [String: Any] { // remote server returned an error
                 let jsonErrString = String(data: data, encoding: .utf8)
                 returnErr = true
-                returnErrMsg = jsonErrString ?? "there was an error while getting the error text"
+                returnErrMsg = NetworkingError.serverError(jsonErrString ?? "Could not decode error text")
             }
         }
         
         task.resume()
         sem.wait()
         
-        return (returnErr, returnErrMsg)
+        if returnErr {
+            throw returnErrMsg
+        }
     }
 }
